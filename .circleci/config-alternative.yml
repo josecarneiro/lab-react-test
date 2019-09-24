@@ -1,0 +1,96 @@
+version: 2.1
+
+executors:
+  default-executor:
+    docker:
+      - image: circleci/node:10
+  browser-executor:
+    docker:
+      - image: circleci/node:10-browsers
+
+jobs:
+  install-dependencies:
+    executor: default-executor
+    steps:
+      - checkout
+      - restore_cache:
+          name: Restore Yarn Package Cache
+          keys:
+            - yarn-packages-{{ checksum "yarn.lock" }}
+      - run:
+          name: Install Dependencies
+          command: yarn install --frozen-lockfile
+      - save_cache:
+          name: Save Yarn Package Cache
+          key: yarn-packages-{{ checksum "yarn.lock" }}
+          paths:
+            - ~/.cache/yarn
+      - persist_to_workspace:
+          root: .
+          paths: .
+  build:
+    executor: default-executor
+    steps:
+      - attach_workspace:
+          at: .
+      - run:
+          name: Build and Prepare Everything
+          command: yarn heroku-postbuild
+          no_output_timeout: 60s
+      - persist_to_workspace:
+          root: .
+          paths: .
+  run-tests:
+    executor: default-executor
+    steps:
+      - attach_workspace:
+          at: .
+      - run:
+          name: Run Tests
+          # command: yarn test:client-unit
+          command: yarn test
+          no_output_timeout: 30s
+
+workflows:
+  version: 2
+  test-solution:
+    jobs:
+      - install-dependencies
+      - build:
+          requires:
+            - install-dependencies
+      - run-tests:
+          requires:
+            - install-dependencies
+            - build
+      # - test-unit:
+      #     requires:
+      #       - install-dependencies
+      #       - build
+      # - test-integration:
+      #     requires:
+      #       - install-dependencies
+      #       - build
+      # - test-end-to-end:
+      #     requires:
+      #       - install-dependencies
+      #       - build
+      # - test-conditions:
+      #     requires:
+      #       - install-dependencies
+      #       - build
+  # scheduled-end-to-end:
+  #   triggers:
+  #     - schedule:
+  #         # cron: "0 0 * * *"
+  #         # cron: "0 0,18,20 * * *"
+  #         cron: "0 0 * * *"
+  #         filters:
+  #           branches:
+  #             only:
+  #               - staging
+  #   jobs:
+  #     - install-dependencies
+  #     # - test-conditions:
+  #     #     requires:
+  #     #       - install-dependencies
